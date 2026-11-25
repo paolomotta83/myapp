@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>App con filtro per date</title>
+<style>
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --text: #1c2530;
+  --muted: #5d6b79;
+  --line: #d5dbe1;
+  --accent: #1f5f8b;
+  --accent-text: #ffffff;
+  --err: #b3261e;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141a20; --surface: #1d252d; --text: #e8edf2; --muted: #9aa8b5;
+    --line: #34404b; --accent: #6fb3e0; --accent-text: #0e1a24; --err: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141a20; --surface: #1d252d; --text: #e8edf2; --muted: #9aa8b5;
+  --line: #34404b; --accent: #6fb3e0; --accent-text: #0e1a24; --err: #ff8a80; color-scheme: dark;
+}
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; height: 100%; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font-family: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 17px; line-height: 1.5;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  background: var(--surface); z-index: 30;
+}
+header {
+  flex: none; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.bar {
+  padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+}
+.bar h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+.azioni { display: flex; gap: 8px; }
+.azioni button {
+  font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px; padding: 9px 16px;
+  border: 1px solid var(--accent);
+}
+#filtroBtn { background: var(--accent); color: var(--accent-text); }
+#uploadBtn, #eliminaBtn { background: transparent; color: var(--accent); }
+#eliminaBtn { border-color: var(--line); color: var(--text); }
+.azioni button:disabled { opacity: .45; cursor: not-allowed; }
+#filtroBtn[aria-expanded="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+#pannello {
+  padding: 0 16px; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease;
+}
+#pannello.aperto { grid-template-rows: 1fr; }
+#pannello > div { overflow: hidden; }
+.campi { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; padding: 4px 0 16px; }
+.campi label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color: var(--muted); flex: 1 1 150px; }
+.campi input {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+}
+.campi button {
+  font: inherit; cursor: pointer; color: var(--text); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px;
+}
+main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#info { flex: none; margin: 0; padding: 10px 16px 6px; font-size: .9rem; color: var(--muted); }
+#info.errore { color: var(--err); }
+#testo {
+  flex: 1; min-height: 0; width: 100%; box-sizing: border-box;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 8px 16px 16px; margin: 0; overflow-wrap: anywhere;
+  font: inherit;
+}
+#testo.vuoto { color: var(--muted); padding-top: 16px; }
+#testo ul { list-style: none; margin: 0; padding: 0; }
+#testo li { display: grid; grid-template-columns: auto 9.5em 1fr; align-items: start; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+#testo li:last-child { border-bottom: 0; }
+#testo .quando { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+#testo .senza { color: var(--muted); }
+#testo li span:last-child { white-space: pre-line; }
+#testo li input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+#testo li.sel { background: rgba(127, 127, 127, .16); }
+@media (max-width: 480px) { #testo li { grid-template-columns: auto 1fr; gap: 2px 12px; } #testo li input { grid-row: 1 / span 2; } }
+@media (prefers-reduced-motion: reduce) { #pannello { transition: none; } }
+footer { flex: none; background: var(--surface); border-top: 1px solid var(--line); }
+.piede { padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.piede button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 8px; padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); }
+.piede button:disabled { opacity: .45; cursor: not-allowed; }
+#pdfNota { font-size: .9rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Lettore testo</h1>
+    <div class="azioni">
+      <button id="filtroBtn" type="button" aria-expanded="false" aria-controls="pannello">Filtro</button>
+      <button id="uploadBtn" type="button">Upload</button>
+      <button id="eliminaBtn" type="button" disabled>Elimina file</button>
+    </div>
+  </div>
+  <div id="pannello">
+    <div>
+      <div class="campi">
+        <label>Data inizio <input type="date" id="inizio"></label>
+        <label>Data fine <input type="date" id="fine"></label>
+        <button type="button" id="azzera">Azzera</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+  <p id="info" role="status"></p>
+  <div id="testo" class="vuoto" tabindex="0" role="region" aria-label="Testo caricato">Premi Upload per caricare un file .txt.</div>
+</main>
+<footer>
+  <div class="piede">
+    <button id="pdfBtn" type="button" disabled>Crea PDF</button>
+    <span id="pdfNota" role="status"></span>
+  </div>
+</footer>
+<input type="file" id="file" accept=".txt,text/plain" hidden>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const el = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const fmt = iso => { const [y, m, d] = iso.split("-"); return d + "/" + m + "/" + y; };
+let nomeFile = "", voci = [], visCount = 0;
+let downloads = null, pdfOk = false, creando = false, msgPdf = "";
+
+// Il salvataggio dei file passa dalla capability downloads del viewer
+(window.claude ? claude.use("downloads") : Promise.resolve(null))
+  .then(d => { downloads = d; pdfOk = d ? true : null; aggiornaPdf(); })
+  .catch(() => { pdfOk = null; aggiornaPdf(); });
+
+function aggiornaPdf() {
+  const n = voci.filter(v => v.sel).length;
+  const b = el("pdfBtn");
+  b.disabled = pdfOk !== true || creando || !n;
+  b.textContent = n ? "Crea PDF (" + n + ")" : "Crea PDF";
+  el("pdfNota").textContent = msgPdf || (pdfOk === null ? "Il salvataggio di file non è disponibile in questa vista." : (n ? "" : "Seleziona almeno una riga."));
+}
+
+// Il font standard del PDF non contiene emoji e simboli fuori dall’alfabeto latino
+function pulisci(t) {
+  return String(t)
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u200E\u200F]/gu, "")
+    .replace(/[^\n\u0020-\u007E\u00A0-\u00FF\u2018\u2019\u201C\u201D\u2013\u2014\u2022\u2026\u20AC]/g, "?");
+}
+
+async function creaPdf() {
+  const sel = voci.filter(v => v.sel);
+  if (!sel.length || pdfOk !== true) return;
+  if (!window.jspdf) { msgPdf = "Libreria PDF non caricata: ricarica la pagina."; aggiornaPdf(); return; }
+  creando = true; msgPdf = ""; aggiornaPdf();
+  try {
+    const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    const M = 15, W = 210, H = 297, COL = 38, LH = 5;
+    doc.setFontSize(10);
+    let y = M + 4;
+    sel.forEach(v => {
+      const righe = doc.splitTextToSize(pulisci(v.rest), W - 2 * M - COL);
+      righe.forEach((ln, i) => {
+        if (y > H - M) { doc.addPage(); y = M + 4; }
+        if (i === 0) {
+          doc.setFont("helvetica", "bold");
+          doc.text(v.t !== null ? v.quando : "Senza data", M, y);
+          doc.setFont("helvetica", "normal");
+        }
+        doc.text(ln, M + COL, y);
+        y += LH;
+      });
+      y += 2.5;
+    });
+    const oggi = new Date();
+    const nome = "selezione-" + oggi.getFullYear() + "-" + pad(oggi.getMonth() + 1) + "-" + pad(oggi.getDate()) + ".pdf";
+    await downloads.save({ filename: nome, data: doc.output("arraybuffer") });
+    msgPdf = "PDF salvato.";
+  } catch (err) {
+    const c = err && err.code;
+    msgPdf = c === "declined" ? "Salvataggio annullato."
+      : c === "host_unavailable" ? "Questa app non può salvare file: apri la pagina da un browser."
+      : "Impossibile creare il PDF.";
+  }
+  creando = false;
+  aggiornaPdf();
+}
+el("pdfBtn").addEventListener("click", creaPdf);
+
+el("filtroBtn").addEventListener("click", () => {
+  const aperto = el("pannello").classList.toggle("aperto");
+  el("filtroBtn").setAttribute("aria-expanded", aperto);
+  if (aperto) el("inizio").focus();
+});
+
+// Riconosce data (gg/mm/aa, gg/mm/aaaa, gg-mm-aaaa, gg.mm.aaaa, aaaa-mm-gg) e ora (hh:mm o hh:mm:ss) ovunque nella riga
+const RE_DATA = /(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})|(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})|(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2})(?!\d)/;
+const RE_ORA = /(?:^|[^\d])(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)/;
+
+function leggiRiga(riga) {
+  const m = riga.match(RE_DATA);
+  if (!m) return { raw: riga, rest: riga, t: null };
+  let y, mo, d;
+  if (m[1]) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else if (m[4]) { d = +m[4]; mo = +m[5]; y = +m[6]; }
+  else { d = +m[7]; mo = +m[8]; y = 2000 + +m[9]; }
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return { raw: riga, rest: riga, t: null };
+  let resto = riga.replace(m[0], " ");
+  let h = 0, mi = 0, sec = 0, haOra = false;
+  const o = resto.match(RE_ORA);
+  if (o && +o[1] < 24 && +o[2] < 60 && (!o[3] || +o[3] < 60)) {
+    h = +o[1]; mi = +o[2]; sec = o[3] ? +o[3] : 0; haOra = true;
+    resto = resto.replace(o[0], " ");
+  }
+  resto = resto.replace(/\[[\s,;]*\]/g, " ").replace(/\s+/g, " ").replace(/^[\s\-|;,:\[\]]+|[\s\-|;,:\[\]]+$/g, "");
+  return {
+    raw: riga,
+    rest: resto || riga,
+    t: new Date(y, mo - 1, d, h, mi, sec).getTime(),
+    day: y + "-" + pad(mo) + "-" + pad(d),
+    quando: pad(d) + "/" + pad(mo) + "/" + y + (haOra ? " " + pad(h) + ":" + pad(mi) : "")
+  };
+}
+
+function render() {
+  const a = el("inizio").value, b = el("fine").value;
+  const box = el("testo"), info = el("info");
+  info.classList.remove("errore");
+  box.textContent = "";
+  el("eliminaBtn").disabled = !nomeFile;
+  aggiornaPdf();
+  if (!voci.length) {
+    box.className = "vuoto";
+    box.textContent = nomeFile ? "Il file non contiene righe di testo." : "Premi Upload per caricare un file .txt.";
+    info.textContent = nomeFile ? "File: " + nomeFile : "";
+    return;
+  }
+  box.className = "";
+  const errore = a && b && a > b;
+  const filtra = (a || b) && !errore;
+  const visibili = voci.filter(v => !filtra || (v.t !== null && (!a || v.day >= a) && (!b || v.day <= b)));
+  const ul = document.createElement("ul");
+  visibili.forEach(v => {
+    const li = document.createElement("li");
+    const q = document.createElement("span");
+    const r = document.createElement("span");
+    if (v.t !== null) { q.className = "quando"; q.textContent = v.quando; }
+    else { q.className = "quando senza"; q.textContent = "Senza data"; }
+    r.textContent = v.rest;
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!v.sel;
+    cb.setAttribute("aria-label", "Seleziona questa riga");
+    if (v.sel) li.className = "sel";
+    cb.addEventListener("change", () => { v.sel = cb.checked; li.classList.toggle("sel", cb.checked); scriviInfo(); });
+    li.append(cb, q, r); ul.append(li);
+  });
+  box.append(ul);
+  box.scrollTop = 0;
+  visCount = visibili.length;
+  scriviInfo();
+}
+
+function scriviInfo() {
+  msgPdf = "";
+  aggiornaPdf();
+  const a = el("inizio").value, b = el("fine").value, info = el("info");
+  info.classList.remove("errore");
+  if (a && b && a > b) {
+    info.classList.add("errore");
+    info.textContent = "La data di inizio deve precedere la data di fine.";
+    return;
+  }
+  const parti = ["File: " + nomeFile, visCount + " di " + voci.length + " righe"];
+  if (a || b) parti.push("Periodo" + (a ? " dal " + fmt(a) : "") + (b ? " al " + fmt(b) : ""));
+  const sel = voci.filter(v => v.sel).length;
+  if (sel) parti.push(sel + (sel === 1 ? " selezionata" : " selezionate"));
+  info.textContent = parti.join("  |  ");
+}
+
+el("inizio").addEventListener("change", render);
+el("fine").addEventListener("change", render);
+el("azzera").addEventListener("click", () => { el("inizio").value = ""; el("fine").value = ""; render(); });
+
+el("uploadBtn").addEventListener("click", () => el("file").click());
+el("file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (!/\.txt$/i.test(f.name)) {
+    el("info").classList.add("errore");
+    el("info").textContent = "Scegli un file con estensione .txt.";
+    return;
+  }
+  const r = new FileReader();
+  r.onload = () => {
+    nomeFile = f.name;
+    const righe = String(r.result).replace(/^\uFEFF/, "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    const lette = [];
+    righe.forEach(rg => {
+      const v = leggiRiga(rg);
+      const prec = lette[lette.length - 1];
+      if (v.t === null && prec && prec.t !== null) prec.rest += "\n" + rg;
+      else lette.push(v);
+    });
+    const con = lette.filter(v => v.t !== null).sort((x, y) => x.t - y.t);
+    const senza = lette.filter(v => v.t === null);
+    voci = con.concat(senza);
+    render();
+  };
+  r.onerror = () => {
+    el("info").classList.add("errore");
+    el("info").textContent = "Impossibile leggere il file.";
+  };
+  r.readAsText(f);
+});
+
+el("eliminaBtn").addEventListener("click", () => {
+  nomeFile = "";
+  voci = [];
+  render();
+});
+render();
+</script>
+</body>
+</html>
